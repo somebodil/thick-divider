@@ -1,0 +1,10 @@
+{
+  "id": "thick-divider",
+  "name": "thick-divider",
+  "version": "1.0.0",
+  "minAppVersion": "1.6.7",
+  "description": "Draws a line of === as a divider three times as thick as the one of ---.",
+  "author": "somebodil",
+  "authorUrl": "https://github.com/somebodil",
+  "isDesktopOnly": false
+}
