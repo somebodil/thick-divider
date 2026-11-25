@@ -25,10 +25,22 @@ The divider has the color and the place of the one of `---` in your theme. There
 
 ## Installation
 
+thick-divider is in the community plugin directory of Obsidian.
+
+1. In Obsidian, go to **Settings → Community plugins**. If community plugins are still turned off, turn them on.
+2. Select **Browse** and search for **thick-divider**.
+3. Select **Install**, and then **Enable**.
+
+Obsidian tells you when there is a newer version, and installs it for you.
+
+### By hand
+
 1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/somebodil/thick-divider/releases/latest).
 2. In your vault, create the folder `.obsidian/plugins/thick-divider/` and put the three files in it. `.obsidian` is a hidden folder.
 3. Restart Obsidian.
 4. Go to **Settings → Community plugins** and switch on **thick-divider** in the list of installed plugins.
+
+To update, replace the three files with the ones from a newer release and restart Obsidian.
 
 ## License
 
