@@ -1,54 +1,57 @@
-"use strict";
+// Draws a line of "===" as a divider three times as thick as the one of "---".
+// Only how a note is drawn changes, never the note.
 
-// A line of "===" is drawn as a divider, three times as thick as the one of "---".
-// The note is not changed: only how it is drawn.
-
-const { Plugin, editorLivePreviewField } = require("obsidian");
+const obsidian = require("obsidian");
 const { Decoration, ViewPlugin, WidgetType } = require("@codemirror/view");
 const { syntaxTree } = require("@codemirror/language");
 
 const LINE = /^ {0,3}={3,}[ \t]*$/;
 const FIRST_LINE = /^[ \t]*={3,}[ \t]*(\n|$)/;
 
-const divider = () => createEl("hr", { attr: { style: "border-top-width: calc(3 * var(--hr-thickness))" } });
+const divider = () => createEl("hr", "thick-divider");
 
-// <br><hr>, as in the line of a "---": the <br> keeps the height of a line.
 class Divider extends WidgetType {
-  eq() { return true; }
-  toDOM() {
-    const el = createSpan({ attr: { style: "display: contents" } });
-    el.append(createEl("br"), divider());
-    return el;
+  toDOM(view) {
+    const hr = divider();
+    // As for a "---": a click selects the "===" of the line, and so shows it.
+    hr.addEventListener("click", () => {
+      const { from, to } = view.state.doc.lineAt(view.posAtDOM(hr));
+      view.dispatch({ selection: { anchor: to, head: from } });
+    });
+    return hr;
   }
-  ignoreEvent() { return false; } // a click on it selects the line, and shows the "==="
 }
 
-// The line gets the class of the line of a "---", so it is laid out the same.
+// As for a line of "---": the line gets Obsidian's class "hr", its text is hidden, and the divider
+// comes after it. CodeMirror then ends the line with a <br>, which gives it the height of a line.
 const line = Decoration.line({ class: "hr" });
-const widget = Decoration.replace({ widget: new Divider() });
+const hide = Decoration.replace({});
+const end = Decoration.widget({ widget: new Divider(), side: 1 });
 
-// Only the lines on screen are looked at.
-function decorate(view) {
+const isLivePreview = (state) => state.field(obsidian.editorLivePreviewField, false);
+
+// Only the lines on the screen are looked at.
+const decorate = (view) => {
   const { state } = view;
-  if (!state.field(editorLivePreviewField)) return Decoration.none;
+  if (!isLivePreview(state)) return Decoration.none;
   const tree = syntaxTree(state), { doc, selection } = state, found = [];
-  const marked = (l) => tree.resolveInner(l.from + l.text.search(/\S|$/), 1).name;
   for (const { from, to } of view.visibleRanges) {
     for (let pos = from; pos <= to; ) {
       const l = doc.lineAt(pos);
       pos = l.to + 1;
       if (!LINE.test(l.text)) continue;
-      // Marked "===": the line under a heading, or in code, math, a quote or the properties.
+      // Marked by Obsidian: it makes the text above it a heading, or it is in code, math, a quote or the properties.
       if (tree.resolveInner(l.from + l.text.indexOf("="), 1).parent) continue;
-      // Under a list item, "===" makes the item a heading in Reading view.
-      if (l.number > 1 && marked(doc.line(l.number - 1)).includes("list")) continue;
-      // Where the cursor or the selection is, the "===" is shown, as for "---".
+      // Under a list item, Reading view makes the item a heading.
+      const above = l.number > 1 && doc.line(l.number - 1);
+      if (above && tree.resolveInner(above.from + above.text.search(/\S|$/), 1).name.includes("list")) continue;
+      // Where the cursor or a selection is, the "===" shows.
       if (selection.ranges.some((r) => r.from <= l.to && r.to >= l.from)) continue;
-      found.push(line.range(l.from), widget.range(l.from, l.to));
+      found.push(line.range(l.from), hide.range(l.from, l.to), end.range(l.to));
     }
   }
   return Decoration.set(found);
-}
+};
 
 const livePreview = ViewPlugin.fromClass(
   class {
@@ -56,30 +59,31 @@ const livePreview = ViewPlugin.fromClass(
     update(u) {
       if (u.docChanged || u.viewportChanged || u.selectionSet ||
           syntaxTree(u.startState) !== syntaxTree(u.state) ||
-          u.startState.field(editorLivePreviewField) !== u.state.field(editorLivePreviewField)) {
+          isLivePreview(u.startState) !== isLivePreview(u.state)) {
         this.decorations = decorate(u.view);
       }
     }
   },
-  { decorations: (p) => p.decorations },
+  { decorations: (v) => v.decorations },
 );
 
-module.exports = class ThickDivider extends Plugin {
+module.exports = class ThickDivider extends obsidian.Plugin {
   onload() {
     this.registerEditorExtension(livePreview);
     // Reading view: a paragraph that begins with a line of "===".
     this.registerMarkdownPostProcessor((el) => {
       for (const p of el.querySelectorAll(":scope > p")) {
-        const t = p.firstChild, m = t?.nodeType === 3 && FIRST_LINE.exec(t.data);
+        const text = p.firstChild;
+        const m = text?.instanceOf(Text) && FIRST_LINE.exec(text.data);
         if (!m) continue;
-        const next = t.nextSibling;
-        if (!m[1] && next) {
-          if (next.nodeName !== "BR") continue; // more on the same line: not a line of "===" only
-          next.remove();
+        // After the "===": nothing, a <br> and the next line, or (with strict line breaks) the next line.
+        if (!m[1] && text.nextSibling) {
+          if (text.nextSibling.nodeName !== "BR") continue; // more on the same line
+          text.nextSibling.remove();
         }
-        t.data = t.data.slice(m[0].length);
+        text.data = text.data.slice(m[0].length);
         p.before(divider());
-        if (!t.data.trim() && !t.nextSibling) p.remove();
+        if (!text.data.trim() && !text.nextSibling) p.remove();
       }
     });
   }

@@ -1,0 +1,4 @@
+/* The divider of a line of "===": three times as thick as the one of "---" */
+hr.thick-divider {
+  border-top-width: calc(3 * var(--hr-thickness));
+}
